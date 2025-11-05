@@ -1,0 +1,23 @@
+# Dependencias
+node_modules/
+
+# Builds y artefactos
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Frontend
+frontend/dist/
+frontend/.vite/
+
+# Backend
+backend/data/*.json
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Entornos
+.env
+.env.local

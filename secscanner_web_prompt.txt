@@ -1,0 +1,83 @@
+Genera un proyecto completo llamado **secscanner-web** que integre un backend profesional en **Node.js/Express** y un frontend moderno en **React (Vite)**. El objetivo es permitir lanzar escaneos con el binario C `secscanner` (que ya existe en la máquina) desde la web, ver el progreso en tiempo real y descargar/exportar resultados. Entrego requisitos exactos; genera todo el código fuente y un README detallado en español.
+
+**Requisitos y comportamiento global**
+1. Estructura del proyecto:
+```
+secscanner-web/
+├─ backend/
+│  ├─ package.json
+│  ├─ server.js
+│  ├─ src/
+│  │  ├─ api.js        # endpoints REST
+│  │  ├─ jobs.js       # queue y gestión de procesos
+│  │  ├─ runner.js     # wrappers child_process para secscanner
+│  │  └─ utils.js
+│  └─ data/            # resultados JSON guardados por scan_id
+├─ frontend/
+│  ├─ package.json
+│  ├─ index.html
+│  ├─ src/
+│  │  ├─ main.jsx
+│  │  ├─ App.jsx
+│  │  ├─ components/
+│  │  │  ├─ ScanForm.jsx
+│  │  │  ├─ ScanList.jsx
+│  │  │  └─ ResultView.jsx
+│  │  └─ api.js        # helpers fetch + socket.io client
+├─ README.md
+└─ .gitignore
+```
+
+2. **Backend (Express + Socket.IO)**:
+- Crea un servidor Express en `backend/server.js` que exponga:
+  - `POST /api/scan` — inicia un scan. Body JSON: `{ "target":"scanme.nmap.org", "ports":"22,80,443", "timeout":300, "maxWorkers":32 }`. Respuesta: `{ "scan_id":"<uuid>" }`.
+  - `GET /api/scan/:id` — devuelve info y resultados si ya están listos.
+  - `GET /api/scan/:id/download` — descarga JSON con resultados.
+- Implementa **cola en memoria** (jobs.js) que gestione la concurrencia global (`maxParallelJobs` configurable). No uses Redis; la cola puede ser in-memory con un array FIFO y un contador de workers activos.
+- Para cada job se debe:
+  1. Invocar el binario `secscanner` con `child_process.spawn` (usa rutas relativas: `../secscanner` o configurable).  
+  2. Pipear `stdout` y `stderr` en tiempo real. Parsear líneas relevantes (ej. líneas que indiquen `PUERTO ... ABIERTO` y banners) y emitir por **Socket.IO** al cliente con eventos: `scan:progress` y `scan:done` cuando termine.  
+  3. Guardar el resultado final en `backend/data/<scan_id>.json`.
+- Implementa límites y seguridad:
+  - Acepta peticiones solo desde `localhost` por defecto (CORS configurado).
+  - Usa `express-rate-limit` para limitar peticiones al endpoint `/api/scan`.
+  - Comprueba que el `target` es un hostname o IPv4 válido (básico) y que `ports` tenga formato lista/rango. Rechaza targets con caracteres raros.
+- Añade logs compactos y manejo de errores (timeouts, exits no cero).
+
+3. **Realtime**:
+- Usa **Socket.IO** en backend y frontend.
+- Cuando el cliente crea un scan, le devuelve `scan_id`. El frontend conecta a Socket.IO con `scan_id` y escucha eventos `scan:progress` (payload parcial) y `scan:done` (payload completo y path para descargar).
+
+4. **Frontend (React + Vite)**:
+- Genera una SPA minimalista:
+  - `ScanForm.jsx` — formulario para target, puertos, timeout y botón “Iniciar escaneo”. Al enviar hace POST `/api/scan` y recibe `scan_id`.
+  - `ScanList.jsx` — muestra lista de scans iniciados (local session), con estado (running/done).
+  - `ResultView.jsx` — muestra resultados en tabla (puerto, estado, banner), botón descargar JSON/CSV y botón para abrir raw JSON.
+- Implementa conexión Socket.IO desde `api.js`. En `ScanForm` al recibir `scan_id` suscribe listener que actualiza UI en tiempo real.
+- Usa **Tailwind CSS** o **Bootstrap** (elige una, especifica en prompt). Debe ser responsiva.
+
+5. **README.md** (en español) con secciones:
+- Requisitos previos (Node.js >=18, npm, que `secscanner` esté compilado y en la raíz `../secscanner` o configurar `RUNNER_PATH`).
+- Instalación paso a paso (backend y frontend): `cd backend && npm install`, `cd frontend && npm install`.
+- Ejecución en desarrollo: `cd backend && npm run dev` (usa nodemon), `cd frontend && npm run dev` (Vite). Explicar puertos: backend 3001, frontend 5173 proxy a 3001.
+- Ejemplo de uso (capturas de curl y screenshots de la UI) y comandos para generar build (`npm run build`).
+- Seguridad y aviso legal: usar solo en redes autorizadas, limitador por defecto, cómo configurar `ALLOWED_HOSTS` o CORS si lo quieres abierto.
+
+6. **Extras profesionales**:
+- Añade `package.json` scripts útiles (`dev`, `start`, `lint`, `build`).
+- Añade `nodemon` en backend para desarrollo.
+- CORS: backend debe permitir sólo `http://localhost:5173` por defecto.
+- `frontend/package.json` debe incluir `proxy` o configurar Vite dev server proxy hacia `http://localhost:3001`.
+- Añade `.gitignore` que ignore `node_modules`, `backend/data`, `dist`, archivos binarios.
+
+7. **Salida que quiero**:
+- Genera el contenido completo de cada archivo (server.js, api.js, jobs.js, runner.js, src React files, package.jsons, README.md, .gitignore).  
+- Código limpio, comentarios en español, y un README con comandos listos y ejemplos `curl`.
+- Indica cómo cambiar la ruta al binario `secscanner` (variable de entorno `SCANNER_BIN`).
+
+NOTA: El proyecto debe compilar/instalar y arrancar en macOS. Emplea prácticas de seguridad básicas y deja marcado en README los riesgos y límites legales.
+
+Genera todo en español, y al final indica los comandos exactos para:
+1. Instalar dependencias backend y frontend.
+2. Ejecutar backend y frontend en modo dev.
+3. Probar con `curl` un scan (ejemplo con `scanme.nmap.org`).
